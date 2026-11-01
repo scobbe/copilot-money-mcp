@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/ignaciohermosillacornejo/copilot-money-mcp#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.13.0"
   },
   "type": "module",
   "main": "dist/server.js",

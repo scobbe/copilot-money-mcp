@@ -318,7 +318,7 @@ copilot-money-mcp.mcpb/
     "copilot-money-mcp": "dist/cli.js"
   },
   "engines": {
-    "node": ">=18.0.0"           // ✅ Node version requirement
+    "node": ">=22.13.0"           // ✅ Node version requirement
   }
 }
 ```
@@ -499,7 +499,7 @@ Edit `servers.json`:
       "tags": ["personal-finance", "transactions", "budgeting", "spending-analysis", "local-data", "privacy-first"],
       "platforms": ["darwin"],
       "requirements": {
-        "node": ">=18.0.0",
+        "node": ">=22.13.0",
         "app": "Copilot Money"
       }
     }
