@@ -9,31 +9,43 @@ jobs:
     # Skip draft PRs, forked PRs, and Dependabot PRs (secrets are unavailable)
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
+    environment:
+      name: >-
+        ${{ github.event_name != 'pull_request_target' &&
+        github.actor != 'dependabot[bot]' &&
+        github.event.pull_request.draft != true &&
+        (((github.event_name == 'pull_request' || github.event_name == 'workflow_call') &&
+          github.event.pull_request.head.repo.full_name == github.repository) ||
+         ((github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') &&
+          github.ref == 'refs/heads/main' &&
+          (github.event.pull_request.head.repo.full_name == '' ||
+           github.event.pull_request.head.repo.full_name == github.repository))) &&
+        'security-ci-claude' || 'security-ci-untrusted' }}
     permissions:
       contents: read
       pull-requests: write
       issues: write
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Require Claude CI authentication
+        env:
+          CLAUDE_CI_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$CLAUDE_CI_TOKEN" ]; then
+            echo "::error::Claude CI authentication is unavailable for this context."
+            exit 1
+          fi
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - name: Load secrets from 1Password
-        uses: 1password/load-secrets-action@v4
-        with:
-          export-env: true
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          CLAUDE_CODE_OAUTH_TOKEN: op://Dev/CLAUDE_CODE_OAUTH_TOKEN/credential
-
       - name: AI Code Review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1
         with:
-          claude_code_oauth_token: ${{ env.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Pass GitHub token explicitly to bypass OIDC token exchange,
-          # which rejects pull_request_target events.
-          # See: https://github.com/anthropics/claude-code-action/issues/713
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Use this job's least-privilege GitHub token without an OIDC exchange.
           github_token: ${{ secrets.GITHUB_TOKEN }}
           track_progress: true
           use_sticky_comment: true
@@ -56,21 +68,3 @@ jobs:
             --model claude-sonnet-4-6
             --allowedTools "Bash(gh pr diff*),Bash(gh pr view*),Read,Grep,Glob"
             --disallowedTools "Bash(gh pr review --approve*),Bash(gh pr merge*),Bash(gh pr close*)"
-
-      # Auto-approve owner PRs after the review step completes so the
-      # 1-approval branch protection is satisfied without a second reviewer.
-      # Note: this approves if the review step didn't error — it does NOT
-      # gate on whether the AI flagged issues (Claude exits 0 either way).
-      # Fork PRs are excluded by the job-level `if` condition above.
-      - name: Auto-approve owner PRs
-        if: github.event.pull_request.user.login == github.repository_owner
-        uses: actions/github-script@v9
-        with:
-          script: |
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-              event: 'APPROVE',
-              body: 'Auto-approved: AI code review completed for repo owner PR.'
-            });
