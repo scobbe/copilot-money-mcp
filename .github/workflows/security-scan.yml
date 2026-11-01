@@ -1,0 +1,34 @@
+name: Security scan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: semgrep/semgrep:1.183.0@sha256:2e45517a85e13a9cca14a2a00df6bb48affd66b8ebfae1b0991cd57578362fb0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Scan source and secret patterns
+        shell: bash
+        run: |
+          # Scan locally in the runner. Do not send source or telemetry to a service.
+          # Print locations and rule IDs only, so a detected credential is never echoed.
+          semgrep scan --config p/security-audit --config p/secrets \
+            --metrics=off --disable-version-check --disable-nosem \
+            --timeout 60 --jobs 1 --max-memory 2048 --strict --error --json . |
+            python3 -c 'import json,sys; d=json.load(sys.stdin); print("Security findings:",len(d.get("results",[]))); [print(r["path"]+":"+str(r["start"]["line"])+" "+r["check_id"]) for r in d.get("results",[])]; print("Scanner errors:",len(d.get("errors",[]))); [print(str(e.get("type","error"))+" "+str(e.get("path",""))) for e in d.get("errors",[])]'
