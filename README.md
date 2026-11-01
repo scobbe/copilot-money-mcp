@@ -214,6 +214,14 @@ The `period` parameter supports these shortcuts:
 
 Both `--live-reads` and `--write` make authenticated calls to Copilot Money's GraphQL API at `app.copilot.money/api/graphql`. They require a **logged-in browser session** against `app.copilot.money` — the server reads the same Firebase refresh token the web app stores in your browser (Chrome, Arc, Safari, or Firefox).
 
+For a separate Chromium user-data directory, set `COPILOT_BROWSER_USER_DATA_DIR`
+to its absolute path, or create `~/.config/copilot-money-mcp/browser.json` containing
+`{"userDataDir":"/absolute/path/to/browser-data"}`. The environment variable takes
+precedence. An explicit selection searches only that directory's `Default` and
+`Profile N` profiles; a missing session or invalid configuration does not fall back
+to another browser. This file contains a path, never a token. Restart only the MCP
+server after changing it.
+
 Default mode requires no authentication and makes zero network requests — reads come from the local LevelDB cache.
 
 ### `--live-reads`: real-time reads via GraphQL

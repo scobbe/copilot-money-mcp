@@ -7,7 +7,7 @@
  */
 
 import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join } from 'path';
 import { homedir } from 'os';
 
 /** Configuration for a browser's token storage location. */
@@ -150,6 +150,36 @@ export const BROWSER_CONFIGS: BrowserConfig[] = [
   },
 ];
 
+/** An explicitly selected Chromium user-data root is the only root searched. */
+export function getBrowserConfigs(
+  env: Record<string, string | undefined> = process.env,
+  configFile = join(homedir(), '.config/copilot-money-mcp/browser.json')
+): BrowserConfig[] {
+  let userDataDir: unknown = env.COPILOT_BROWSER_USER_DATA_DIR;
+  if (userDataDir === undefined && existsSync(configFile)) {
+    try {
+      const config: unknown = JSON.parse(readFileSync(configFile, 'utf8'));
+      if (typeof config !== 'object' || config === null || !('userDataDir' in config)) {
+        throw new Error('Missing userDataDir');
+      }
+      userDataDir = config.userDataDir;
+    } catch {
+      throw new Error('Invalid Copilot browser configuration: expected a userDataDir.');
+    }
+  }
+  if (userDataDir === undefined) return BROWSER_CONFIGS;
+  if (typeof userDataDir !== 'string' || !isAbsolute(userDataDir)) {
+    throw new Error('Copilot browser userDataDir must be an absolute path.');
+  }
+  return [
+    {
+      name: 'Configured Chromium',
+      type: 'chromium',
+      paths: getChromiumProfileStoragePaths(userDataDir),
+    },
+  ];
+}
+
 /**
  * Extract every refresh token from a file's raw bytes.
  *
@@ -289,7 +319,7 @@ export function noCopilotSessionError(checked: string[]): Error {
 export function extractRefreshTokenCandidates(
   browserOverrides?: BrowserConfig[]
 ): Promise<TokenCandidates> {
-  const browsers = browserOverrides ?? BROWSER_CONFIGS;
+  const browsers = browserOverrides ?? getBrowserConfigs();
   const checked: string[] = [];
   const candidates: TokenResult[] = [];
   const seen = new Set<string>();

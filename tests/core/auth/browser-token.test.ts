@@ -4,6 +4,7 @@ import {
   extractRefreshTokenCandidates,
   BROWSER_CONFIGS,
   getChromiumProfileStoragePaths,
+  getBrowserConfigs,
   type BrowserConfig,
 } from '../../../src/core/auth/browser-token.js';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync, symlinkSync, chmodSync } from 'fs';
@@ -74,6 +75,46 @@ describe('extractRefreshToken', () => {
 
   afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('configured user-data root discovers a session without searching other browsers', async () => {
+    const root = join(tempDir, 'custom-browser');
+    const storage = join(root, 'Profile 2/IndexedDB/https_app.copilot.money_0.indexeddb.leveldb');
+    mkdirSync(storage, { recursive: true });
+    const fakeToken = 'AMf-' + 'q'.repeat(150);
+    writeFileSync(join(storage, '000001.ldb'), fakeToken);
+    const config = join(tempDir, 'browser.json');
+    writeFileSync(config, JSON.stringify({ userDataDir: root }));
+    const result = await extractRefreshTokenCandidates(getBrowserConfigs({}, config));
+    expect(result.checked).toEqual(['Configured Chromium']);
+    expect(result.candidates).toEqual([{ token: fakeToken, browser: 'Configured Chromium' }]);
+  });
+
+  test('environment selection overrides the config and never falls back on a missing root', async () => {
+    const config = join(tempDir, 'browser.json');
+    writeFileSync(config, 'invalid JSON');
+    const result = await extractRefreshTokenCandidates(
+      getBrowserConfigs({ COPILOT_BROWSER_USER_DATA_DIR: join(tempDir, 'missing') }, config)
+    );
+    expect(result.checked).toEqual(['Configured Chromium']);
+    expect(result.candidates).toEqual([]);
+  });
+
+  test('invalid explicit configuration fails closed without echoing its contents', () => {
+    const config = join(tempDir, 'browser.json');
+    for (const contents of ['invalid JSON', '{}', 'null', '{"userDataDir":42}']) {
+      writeFileSync(config, contents);
+      expect(() => getBrowserConfigs({}, config)).toThrow(/configuration|absolute path/);
+    }
+    for (const path of ['', 'relative/path']) {
+      expect(() => getBrowserConfigs({ COPILOT_BROWSER_USER_DATA_DIR: path }, config)).toThrow(
+        'Copilot browser userDataDir must be an absolute path.'
+      );
+    }
+  });
+
+  test('absent explicit configuration preserves standard browser discovery', () => {
+    expect(getBrowserConfigs({}, join(tempDir, 'missing.json'))).toBe(BROWSER_CONFIGS);
   });
 
   test('discovers IndexedDB and Local Storage paths for all Chrome profile directories', () => {
