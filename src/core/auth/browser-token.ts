@@ -6,8 +6,8 @@
  * Money Firebase refresh tokens (prefixed with "AMf-").
  */
 
-import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
-import { isAbsolute, join } from 'path';
+import { readdirSync, readFileSync, existsSync, lstatSync, statSync } from 'fs';
+import { dirname, isAbsolute, join } from 'path';
 import { homedir } from 'os';
 
 /** Configuration for a browser's token storage location. */
@@ -150,13 +150,42 @@ export const BROWSER_CONFIGS: BrowserConfig[] = [
   },
 ];
 
+/** Distinguish genuine absence from broken links and unreadable configuration. */
+function hasBrowserConfig(configFile: string): boolean {
+  let current = configFile;
+  for (;;) {
+    let entry;
+    try {
+      entry = lstatSync(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw new Error('Cannot access Copilot browser configuration.', { cause: error });
+      }
+      const parent = dirname(current);
+      if (parent === current) return false;
+      current = parent;
+      continue;
+    }
+    if (current === configFile) return true;
+    // ENOENT for the config can also mean an ancestor symlink is broken.
+    if (entry.isSymbolicLink()) {
+      try {
+        statSync(current);
+      } catch {
+        throw new Error('Cannot access Copilot browser configuration.');
+      }
+    }
+    return false;
+  }
+}
+
 /** An explicitly selected Chromium user-data root is the only root searched. */
 export function getBrowserConfigs(
   env: Record<string, string | undefined> = process.env,
   configFile = join(homedir(), '.config/copilot-money-mcp/browser.json')
 ): BrowserConfig[] {
   let userDataDir: unknown = env.COPILOT_BROWSER_USER_DATA_DIR;
-  if (userDataDir === undefined && existsSync(configFile)) {
+  if (userDataDir === undefined && hasBrowserConfig(configFile)) {
     try {
       const config: unknown = JSON.parse(readFileSync(configFile, 'utf8'));
       if (typeof config !== 'object' || config === null || !('userDataDir' in config)) {

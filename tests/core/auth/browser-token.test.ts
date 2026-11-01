@@ -117,6 +117,23 @@ describe('extractRefreshToken', () => {
     expect(getBrowserConfigs({}, join(tempDir, 'missing.json'))).toBe(BROWSER_CONFIGS);
   });
 
+  test('broken config links and broken ancestor links cannot restore default discovery', () => {
+    const config = join(tempDir, 'browser.json');
+    symlinkSync(join(tempDir, 'missing.json'), config);
+    expect(() => getBrowserConfigs({}, config)).toThrow('Invalid Copilot browser configuration');
+    const parent = join(tempDir, 'linked-parent');
+    symlinkSync(join(tempDir, 'missing-directory'), parent);
+    expect(() => getBrowserConfigs({}, join(parent, 'browser.json'))).toThrow(
+      'Cannot access Copilot browser configuration.'
+    );
+  });
+
+  test('an existing config that cannot be read as a file fails closed', () => {
+    const config = join(tempDir, 'browser.json');
+    mkdirSync(config);
+    expect(() => getBrowserConfigs({}, config)).toThrow('Invalid Copilot browser configuration');
+  });
+
   test('discovers IndexedDB and Local Storage paths for all Chrome profile directories', () => {
     const chromeDir = join(tempDir, 'Chrome');
     mkdirSync(join(chromeDir, 'Default'), { recursive: true });
