@@ -38,6 +38,34 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { version: SERVER_VERSION } = require('../package.json') as { version: string };
 
+const MAX_TOOL_INPUT_ELEMENTS = 10_000;
+
+// The low-level Server does not apply McpServer's opt-in input ceiling.
+// Count members iteratively before schema, database, or tool work.
+function exceedsToolInputLimit(value: unknown): boolean {
+  let remaining = MAX_TOOL_INPUT_ELEMENTS;
+  const pending: unknown[] = [value];
+  while (pending.length > 0) {
+    const node = pending.pop();
+    if (node === null || typeof node !== 'object') continue;
+    if (Array.isArray(node)) {
+      remaining -= node.length;
+      if (remaining < 0) return true;
+      for (const child of node) {
+        if (child !== null && typeof child === 'object') pending.push(child);
+      }
+    } else {
+      for (const key in node) {
+        if (!Object.prototype.hasOwnProperty.call(node, key)) continue;
+        if (--remaining < 0) return true;
+        const child = (node as Record<string, unknown>)[key];
+        if (child !== null && typeof child === 'object') pending.push(child);
+      }
+    }
+  }
+  return false;
+}
+
 /**
  * MCP server for Copilot Money data.
  */
@@ -145,6 +173,12 @@ export class CopilotMoneyServer {
    * @param typedArgs - Tool arguments
    */
   async handleCallTool(name: string, typedArgs?: Record<string, unknown>): Promise<CallToolResult> {
+    if (exceedsToolInputLimit(typedArgs)) {
+      return {
+        content: [{ type: 'text', text: 'Tool arguments exceed the maximum of 10000 elements.' }],
+        isError: true,
+      };
+    }
     const toolDef = TOOL_REGISTRY.get(name);
 
     // Block write tools when not in write mode (before db check so the error

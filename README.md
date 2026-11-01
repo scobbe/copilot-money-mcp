@@ -3,7 +3,7 @@
 > Query and manage your personal finances with AI using local Copilot Money data
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
+[![Node.js 22.13+](https://img.shields.io/badge/node-22.13+-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)](https://www.typescriptlang.org/)
 [![Tests](https://github.com/ignaciohermosillacornejo/copilot-money-mcp/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/ignaciohermosillacornejo/copilot-money-mcp/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/ignaciohermosillacornejo/copilot-money-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/ignaciohermosillacornejo/copilot-money-mcp)
@@ -60,7 +60,7 @@ Passing `--write` implies `--live-reads`; you can still pass `--live-reads` on i
 
 ### Prerequisites
 
-- **Node.js 18+** (comes bundled with Claude Desktop)
+- **Node.js 22.13+**
 - **Copilot Money** (macOS App Store version)
 - **Claude Desktop**, **Cursor**, or any MCP-compatible client
 

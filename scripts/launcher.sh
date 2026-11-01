@@ -31,5 +31,5 @@ done
 
 echo "copilot-money-mcp: could not find a Node.js binary on PATH or in" >&2
 echo "  /opt/homebrew/bin, /usr/local/bin, /usr/bin." >&2
-echo "Install Node.js 18+ from https://nodejs.org/ and restart Claude Desktop." >&2
+echo "Install Node.js 22.13+ from https://nodejs.org/ and restart Claude Desktop." >&2
 exit 127

@@ -6,15 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   quality:
     name: Quality Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
@@ -61,14 +66,16 @@ jobs:
             --summary
 
   tests:
-    name: Tests
+    name: Unit Tests
     needs: [quality]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
@@ -78,10 +85,61 @@ jobs:
       - name: Run all tests with coverage
         run: bun test --coverage --coverage-reporter=lcov
 
-      - name: Upload coverage to Codecov
+      - name: Preserve coverage for the authenticated upload job
         if: (github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push') && github.actor != 'dependabot[bot]'
-        uses: codecov/codecov-action@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 1
+
+  coverage:
+    name: Coverage Upload
+    needs: [tests]
+    if: (github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push') && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-lcov
+          path: coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           files: coverage/lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
           fail_ci_if_error: true
+
+  tests-status:
+    # Retain the existing combined check name and failure contract.
+    name: Tests
+    needs: [tests, coverage]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require passing unit tests and coverage upload
+        env:
+          UNIT_RESULT: ${{ needs.tests.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          COVERAGE_REQUIRED: ${{ (github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push') && github.actor != 'dependabot[bot]' }}
+        run: |
+          if [ "$UNIT_RESULT" != success ]; then
+            echo "Unit tests did not pass."
+            exit 1
+          fi
+          if [ "$COVERAGE_REQUIRED" = true ] && [ "$COVERAGE_RESULT" != success ]; then
+            echo "Required coverage upload did not pass."
+            exit 1
+          fi
+          case "$COVERAGE_RESULT" in
+            success|skipped) ;;
+            *) echo "Coverage upload did not pass."; exit 1 ;;
+          esac

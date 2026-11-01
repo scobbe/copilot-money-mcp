@@ -13,7 +13,7 @@ Before testing, ensure you have:
    - The server reads from the local LevelDB cache at: `~/Library/Containers/com.copilot.production/Data/Library/Application Support/firestore/__FIRAPP_DEFAULT/copilot-production-22904/main`
    - Make sure you have transaction data in Copilot Money
 
-3. **Bun or Node.js 18+**
+3. **Bun or Node.js 22.13+**
    ```bash
    bun --version  # Recommended
    # or
