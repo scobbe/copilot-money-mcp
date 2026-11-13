@@ -811,9 +811,9 @@ describe('handleCallTool — error handling', () => {
 
     const result = await server.handleCallTool('get_cache_info');
     expect(firstText(result)).toContain('Database not available');
-    // Server intentionally omits isError for unavailable DB (server.ts:134-145)
-    // so the LLM receives the message as guidance rather than a hard error.
-    expect(result.isError).toBeUndefined();
+    // An unavailable cache is a failed cache-backed read, not a successful
+    // response containing guidance in place of data.
+    expect(result.isError).toBe(true);
   });
 
   test('malformed args to write tool returns isError', async () => {
