@@ -212,8 +212,17 @@ export class CopilotMoneyServer {
       };
     }
 
-    // Check if database is available
-    if (!this.db.isAvailable()) {
+    if (!toolDef) {
+      return {
+        content: [{ type: 'text' as const, text: `Unknown tool: ${name}` }],
+        isError: true,
+      };
+    }
+
+    // Only cache-backed reads depend on the desktop LevelDB. Live reads and
+    // writes use the authenticated API; their handlers validate any metadata
+    // they need. A missing desktop cache must not block those API routes.
+    if (toolDef.readOnly && !toolDef.requiresLiveReads && !this.db.isAvailable()) {
       return {
         content: [
           {
@@ -221,17 +230,6 @@ export class CopilotMoneyServer {
             text:
               'Database not available. Please ensure Copilot Money is installed ' +
               'and has created local data, or provide a custom database path.',
-          },
-        ],
-      };
-    }
-
-    if (!toolDef) {
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: `Unknown tool: ${name}`,
           },
         ],
         isError: true,
